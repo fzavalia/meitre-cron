@@ -5,6 +5,7 @@ import cron from "node-cron";
 import dotenv from "dotenv";
 import pino from "pino";
 import restaurants from "./data/restaurants.json";
+import { AvailableDate, AvailableRestaurant, Restaurant } from "./types";
 
 dotenv.config();
 
@@ -32,35 +33,32 @@ async function main() {
     }
   }
 
-  const availableRestaurants = [];
+  const availableRestaurants: AvailableRestaurant[] = [];
 
   for await (const restaurant of restaurants) {
-    let meitreQueryResult: [Date, AxiosResponse][];
+    let availableDates: AvailableDate[];
 
     try {
-      meitreQueryResult = await queryMeitre(dates, restaurant);
+      availableDates = await getAvailableDates(dates, restaurant);
     } catch (e: any) {
-      logger.error({ restaurant, error: e.message }, "Meitre Query Failed");
+      logger.error(
+        { restaurant: restaurant.name, error: e.message },
+        "Failed to get available dates"
+      );
       continue;
     }
 
-    const availableDates = meitreQueryResult
-      .filter(([_, response]) =>
-        response.data.center.slots.some((slot: any) => slot.type !== "No")
-      )
-      .map(([date, response]) => ({
-        date,
-        hours: response.data.center.slots.map((slot: any) => slot.hour),
-      }));
-
     if (availableDates.length === 0) {
-      logger.info({ restaurant }, "Nothing available");
+      logger.info({ restaurant: restaurant.name }, "Nothing available");
       continue;
     }
 
     availableRestaurants.push({ restaurant, dates: availableDates });
 
-    logger.info({ restaurant, available: availableDates }, "Available");
+    logger.info(
+      { restaurant: restaurant.name, available: availableDates },
+      "Available"
+    );
   }
 
   if (availableRestaurants.length === 0) {
@@ -70,19 +68,7 @@ async function main() {
 
   const search = new URLSearchParams({
     chat_id: TELEGRAM_CHAT_ID!,
-    text: availableRestaurants
-      .map(
-        ({ restaurant, dates }) =>
-          `${restaurant.name}\n\n${dates
-            .map(
-              ({ date, hours }) =>
-                `${format(date, "d 'de' MMMM", { locale: es })}:\n${hours.join(
-                  ", "
-                )}`
-            )
-            .join("\n\n")}\n\n${restaurant.url}`
-      )
-      .join("\n\n"),
+    text: getText(availableRestaurants),
   });
 
   try {
@@ -94,15 +80,60 @@ async function main() {
   }
 }
 
-async function queryMeitre(dates: Date[], restaurant: typeof restaurants[0]) {
+async function getAvailableDates(dates: Date[], restaurant: Restaurant) {
+  let meitreResults: [Date, AxiosResponse][];
+
+  try {
+    meitreResults = await fetchAvailabilityInMeitre(dates, restaurant);
+  } catch (e: any) {
+    logger.error(
+      { restaurant: restaurant.name, error: e.message },
+      "Meitre Query Failed"
+    );
+    throw e;
+  }
+
+  return meitreResults
+    .filter(([_, response]) =>
+      response.data.center.slots.some((slot: any) => slot.type !== "No")
+    )
+    .map(([date, response]) => ({
+      date,
+      hours: response.data.center.slots.map((slot: any) => slot.hour),
+    }));
+}
+
+async function fetchAvailabilityInMeitre(
+  dates: Date[],
+  restaurant: typeof restaurants[0]
+) {
   return Promise.all(
     dates.map(async (date): Promise<[Date, AxiosResponse]> => {
       const urlDate = format(date, "yyyy-MM-dd");
       const url = `${MEITRE_API_URL}/api/search-all-hours/en/2/${urlDate}/dinner/${restaurant.id}`;
-      logger.info({ restaurant, url }, "Request to Meitre API");
+      logger.info(
+        { restaurant: restaurant.name, url },
+        "Request to Meitre API"
+      );
       return [date, await axios.get(url)];
     })
   );
+}
+
+function getText(restaurant: AvailableRestaurant[]) {
+  return restaurant
+    .map(
+      ({ restaurant, dates }) =>
+        `${restaurant.name}\n\n${dates
+          .map(
+            ({ date, hours }) =>
+              `${format(date, "d 'de' MMMM", { locale: es })}:\n${hours.join(
+                ", "
+              )}`
+          )
+          .join("\n\n")}\n\n${restaurant.url}`
+    )
+    .join("\n\n");
 }
 
 cron.schedule(CRON_SCHEDULE!, () => {
