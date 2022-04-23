@@ -28,8 +28,6 @@ export type Restaurant = {
 For example:
 
 ```json
-// restaurants.json
-
 [
   {
     "id": "25",
