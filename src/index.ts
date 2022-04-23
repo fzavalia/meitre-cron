@@ -18,6 +18,8 @@ const TELEGRAM_API_URL = "https://api.telegram.org";
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE;
 const DAYS_AHEAD = Number(process.env.DAYS_AHEAD);
 
+logger.info(process.env)
+
 async function main() {
   const now = new Date();
 
@@ -87,6 +89,8 @@ async function main() {
 }
 
 cron.schedule(CRON_SCHEDULE!, () => {
+  logger.info("Executing task")
+  
   main().catch((e) => {
     logger.error(e.message);
   });
