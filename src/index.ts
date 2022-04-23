@@ -5,7 +5,7 @@ import cron from "node-cron";
 import dotenv from "dotenv";
 import pino from "pino";
 import restaurants from "./data/restaurants.json";
-import { AvailableDate, AvailableRestaurant, Restaurant } from "./types";
+import { AvailableDate, AvailableRestaurant, Restaurant, Slot } from "./types";
 
 dotenv.config();
 
@@ -81,7 +81,7 @@ async function main() {
 }
 
 async function getAvailableDates(dates: Date[], restaurant: Restaurant) {
-  let meitreResults: [Date, AxiosResponse][];
+  let meitreResults: [Date, Slot[]][];
 
   try {
     meitreResults = await fetchAvailabilityInMeitre(dates, restaurant);
@@ -94,28 +94,31 @@ async function getAvailableDates(dates: Date[], restaurant: Restaurant) {
   }
 
   return meitreResults
-    .filter(([_, response]) =>
-      response.data.center.slots.some((slot: any) => slot.type !== "No")
-    )
-    .map(([date, response]) => ({
+    .map(([date, slots]): [Date, Slot[]] => [
       date,
-      hours: response.data.center.slots.map((slot: any) => slot.hour),
+      slots.filter((slot) => slot.type !== "No"),
+    ])
+    .filter(([_, slots]) => slots.length > 0)
+    .map(([date, slots]) => ({
+      date,
+      hours: slots.map((slot) => slot.hour),
     }));
 }
 
 async function fetchAvailabilityInMeitre(
   dates: Date[],
-  restaurant: typeof restaurants[0]
+  restaurant: Restaurant
 ) {
   return Promise.all(
-    dates.map(async (date): Promise<[Date, AxiosResponse]> => {
+    dates.map(async (date): Promise<[Date, Slot[]]> => {
       const urlDate = format(date, "yyyy-MM-dd");
       const url = `${MEITRE_API_URL}/api/search-all-hours/en/2/${urlDate}/dinner/${restaurant.id}`;
       logger.info(
         { restaurant: restaurant.name, url },
         "Request to Meitre API"
       );
-      return [date, await axios.get(url)];
+      const res = await axios.get(url);
+      return [date, res.data.center.slots];
     })
   );
 }

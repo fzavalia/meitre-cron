@@ -13,3 +13,8 @@ export type AvailableRestaurant = {
   restaurant: Restaurant;
   dates: AvailableDate[];
 };
+
+export type Slot = {
+  type: string,
+  hour: string
+}
