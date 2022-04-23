@@ -4,21 +4,20 @@ import { es } from "date-fns/locale";
 import cron from "node-cron";
 import dotenv from "dotenv";
 import pino from "pino";
+import restaurants from "./data/restaurants.json";
 
 dotenv.config();
 
 const logger = pino();
 
 const MEITRE_API_URL = "https://api.meitre.com";
-const MEITRE_RESTAURANT_URL = process.env.MEITRE_RESTAURANT_URL;
-const MEITRE_RESTAURANT_ID = process.env.MEITRE_RESTAURANT_ID;
 const TELEGRAM_BOT_KEY = process.env.TELEGRAM_BOT_KEY;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const TELEGRAM_API_URL = "https://api.telegram.org";
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE;
 const DAYS_AHEAD = Number(process.env.DAYS_AHEAD);
 
-logger.info(process.env)
+logger.info(process.env);
 
 async function main() {
   const now = new Date();
@@ -33,50 +32,57 @@ async function main() {
     }
   }
 
-  let results: [Date, AxiosResponse][];
+  const availableRestaurants = [];
 
-  try {
-    results = await Promise.all(
-      dates.map(async (date): Promise<[Date, AxiosResponse]> => {
-        const urlDate = format(date, "yyyy-MM-dd");
-        const url = `${MEITRE_API_URL}/api/search-all-hours/en/2/${urlDate}/dinner/${MEITRE_RESTAURANT_ID}`;
+  for await (const restaurant of restaurants) {
+    let meitreQueryResult: [Date, AxiosResponse][];
 
-        logger.info({ url }, "Request to Meitre API");
+    try {
+      meitreQueryResult = await queryMeitre(dates, restaurant);
+    } catch (e: any) {
+      logger.error({ restaurant, error: e.message }, "Meitre Query Failed");
+      continue;
+    }
 
-        return [date, await axios.get(url)];
-      })
-    );
-  } catch (e: any) {
-    logger.error({ error: e.message }, "Request to Meitre API failed");
-    return;
+    const availableDates = meitreQueryResult
+      .filter(([_, response]) =>
+        response.data.center.slots.some((slot: any) => slot.type !== "No")
+      )
+      .map(([date, response]) => ({
+        date,
+        hours: response.data.center.slots.map((slot: any) => slot.hour),
+      }));
+
+    if (availableDates.length === 0) {
+      logger.info({ restaurant }, "Nothing available");
+      continue;
+    }
+
+    availableRestaurants.push({ restaurant, dates: availableDates });
+
+    logger.info({ restaurant, available: availableDates }, "Available");
   }
 
-  const available = results
-    .filter(([_, res]) =>
-      res.data.center.slots.some((slot: any) => slot.type !== "No")
-    )
-    .map(([date, res]) => ({
-      date,
-      hours: res.data.center.slots.map((s: any) => s.hour),
-    }));
-
-  if (available.length === 0) {
+  if (availableRestaurants.length === 0) {
     logger.info("Nothing available");
     return;
   }
 
-  logger.info({ available }, "Available");
-
   const search = new URLSearchParams({
     chat_id: TELEGRAM_CHAT_ID!,
-    text: `${available
-      .map((a) => {
-        const date = format(a.date, "d 'de' MMMM", { locale: es });
-        const hours = a.hours.join(", ");
-
-        return `${date}:\n${hours}`;
-      })
-      .join("\n\n")}\n\n${MEITRE_RESTAURANT_URL}`,
+    text: availableRestaurants
+      .map(
+        ({ restaurant, dates }) =>
+          `${restaurant.name}\n\n${dates
+            .map(
+              ({ date, hours }) =>
+                `${format(date, "d 'de' MMMM", { locale: es })}:\n${hours.join(
+                  ", "
+                )}`
+            )
+            .join("\n\n")}\n\n${restaurant.url}`
+      )
+      .join("\n\n"),
   });
 
   try {
@@ -88,9 +94,20 @@ async function main() {
   }
 }
 
+async function queryMeitre(dates: Date[], restaurant: typeof restaurants[0]) {
+  return Promise.all(
+    dates.map(async (date): Promise<[Date, AxiosResponse]> => {
+      const urlDate = format(date, "yyyy-MM-dd");
+      const url = `${MEITRE_API_URL}/api/search-all-hours/en/2/${urlDate}/dinner/${restaurant.id}`;
+      logger.info({ restaurant, url }, "Request to Meitre API");
+      return [date, await axios.get(url)];
+    })
+  );
+}
+
 cron.schedule(CRON_SCHEDULE!, () => {
-  logger.info("Executing task")
-  
+  logger.info("Executing task");
+
   main().catch((e) => {
     logger.error(e.message);
   });

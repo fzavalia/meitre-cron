@@ -11,10 +11,6 @@ When there is availability, a message is broadcasted to a telegram channel.
 
 ## Env
 
-MEITRE_RESTAURANT_URL - The url for the restaurant you make reservations for. (https://restaurant.meitre.com).
-
-MEITRE_RESTAURANT_ID - The id of the restaurant in Meitre.
-
 TELEGRAM_BOT_KEY - The key provided by telegram to be able to use a bot.
 
 TELEGRAM_CHAT_ID - The telegram chat id were the message will be sent.
