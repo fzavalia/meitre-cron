@@ -1,12 +1,12 @@
 # Meitre Cron
 
-Every x amount of time, a request to the [Meitre](https://www.meitre.com/en) api will be executed to check the availability of a restaurant for the following days.
+Every x amount of time, requests to the [Meitre](https://www.meitre.com/en) api will be executed to check the availability of different restaurants for the following days.
 
 When there is availability, a message is broadcasted to a telegram channel.
 
 ## Channels
 
-[Turnos Don Julio](https://t.me/turnos_don_julio)
+[Turnos Meitre](https://t.me/turnos_meitre)
 
 ## Data
 
@@ -14,7 +14,7 @@ Add a `restaurants.json` inside the `data` folder.
 
 This json should contain an array of `Restaurant` objects.
 
-```
+```ts
 export type Restaurant = {
   // Meitre restaurant id
   id: string;
@@ -27,7 +27,7 @@ export type Restaurant = {
 
 For example:
 
-```
+```json
 // restaurants.json
 
 [
