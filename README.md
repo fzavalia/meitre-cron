@@ -8,6 +8,41 @@ When there is availability, a message is broadcasted to a telegram channel.
 
 [Turnos Don Julio](https://t.me/turnos_don_julio)
 
+## Data
+
+Add a `restaurants.json` inside the `data` folder.
+
+This json should contain an array of `Restaurant` objects.
+
+```
+export type Restaurant = {
+  // Meitre restaurant id
+  id: string;
+  // Restaurant name that will be sent in the telegram message
+  name: string;
+  // Meitre url where reservations can be made for the restaurant
+  url: string;
+};
+```
+
+For example:
+
+```
+// restaurants.json
+
+[
+  {
+    "id": "25",
+    "name": "Don Julio",
+    "url": "https://donjulio.meitre.com"
+  },
+  {
+    "id": "60",
+    "name": "La Cabrera",
+    "url": "https://lacabrera.meitre.com/"
+  }
+]
+```
 
 ## Env
 
