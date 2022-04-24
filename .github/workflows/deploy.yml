@@ -9,7 +9,8 @@ on:
   push:
     branches: ["main"]
 
-env: IMAGE_TAG:$(git rev-parse --short HEAD)
+env:
+  IMAGE_TAG: $(git rev-parse --short HEAD)
 
 jobs:
   push_to_registry:
