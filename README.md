@@ -10,7 +10,7 @@ When there is availability, a message is broadcasted to a telegram channel.
 
 ## Data
 
-Add a `restaurants.json` inside the `data` folder.
+Add a `restaurants.json` file in the root of the project.
 
 This json should contain an array of `Restaurant` objects.
 
@@ -42,6 +42,10 @@ For example:
 ]
 ```
 
+Be sure to add the absolute path of this file to the `RESTAURANTS_PATH` env in the `.env` file.
+
+> The file can be anywere in your computer and be called anything, for simplicity and because `restaurants.json` is already ignored in the `.gitignore` file, I recommend placing it in the root of the project
+
 ## Env
 
 TELEGRAM_BOT_KEY - The key provided by telegram to be able to use a bot.
@@ -51,3 +55,5 @@ TELEGRAM_CHAT_ID - The telegram chat id were the message will be sent.
 CRON_SCHEDULE - Pattern indicating the frequence the Meitre api is queried (https://github.com/node-cron/node-cron#cron-syntax).
 
 DAYS_AHEAD - The amount of days ahead the Meitre api will be queried for availability.
+
+RESTAURANTS_PATH - Path to the restaurants definition file

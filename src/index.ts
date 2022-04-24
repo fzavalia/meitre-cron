@@ -4,7 +4,7 @@ import { es } from "date-fns/locale";
 import cron from "node-cron";
 import dotenv from "dotenv";
 import pino from "pino";
-import restaurants from "./data/restaurants.json";
+import fs from "fs";
 import { AvailableDate, AvailableRestaurant, Restaurant, Slot } from "./types";
 
 dotenv.config();
@@ -17,10 +17,46 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const TELEGRAM_API_URL = "https://api.telegram.org";
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE;
 const DAYS_AHEAD = Number(process.env.DAYS_AHEAD);
+const RESTAURANTS_PATH = process.env.RESTAURANTS_PATH;
 
 logger.info(process.env);
 
 async function main() {
+  const restaurants = getRestaurants();
+
+  const dates = getDates();
+
+  const availableRestaurants: AvailableRestaurant[] =
+    await getAvailableRestaurants(dates, restaurants);
+
+  if (availableRestaurants.length === 0) {
+    logger.info("Nothing available");
+    return;
+  }
+
+  const search = new URLSearchParams({
+    chat_id: TELEGRAM_CHAT_ID!,
+    text: getText(availableRestaurants),
+  });
+
+  try {
+    await axios.get(
+      `${TELEGRAM_API_URL}/bot${TELEGRAM_BOT_KEY}/sendMessage?${search.toString()}`
+    );
+  } catch (e: any) {
+    logger.error({ error: e.message }, "Request to Telegram API failed");
+  }
+}
+
+function getRestaurants(): Restaurant[] {
+  const restaurantsData = fs.readFileSync(RESTAURANTS_PATH!, {
+    encoding: "utf-8",
+  });
+
+  return JSON.parse(restaurantsData);
+}
+
+function getDates() {
   const now = new Date();
 
   const dates: Date[] = [];
@@ -33,6 +69,13 @@ async function main() {
     }
   }
 
+  return dates;
+}
+
+async function getAvailableRestaurants(
+  dates: Date[],
+  restaurants: Restaurant[]
+) {
   const availableRestaurants: AvailableRestaurant[] = [];
 
   for await (const restaurant of restaurants) {
@@ -61,23 +104,7 @@ async function main() {
     );
   }
 
-  if (availableRestaurants.length === 0) {
-    logger.info("Nothing available");
-    return;
-  }
-
-  const search = new URLSearchParams({
-    chat_id: TELEGRAM_CHAT_ID!,
-    text: getText(availableRestaurants),
-  });
-
-  try {
-    await axios.get(
-      `${TELEGRAM_API_URL}/bot${TELEGRAM_BOT_KEY}/sendMessage?${search.toString()}`
-    );
-  } catch (e: any) {
-    logger.error({ error: e.message }, "Request to Telegram API failed");
-  }
+  return availableRestaurants;
 }
 
 async function getAvailableDates(dates: Date[], restaurant: Restaurant) {
